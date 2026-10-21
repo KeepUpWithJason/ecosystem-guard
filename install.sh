@@ -66,6 +66,27 @@ else
     /usr/bin/install -o root -g wheel -m 644 "$SRC/config/config.conf.example" "$BASE_DIR/config.conf"
 fi
 
+# 把历史日志里的清理记录迁移到统计文件（只做一次，之后由 monitor.sh 自己追加）
+STATS="$BASE_DIR/kills.log"
+if [ ! -f "$STATS" ]; then
+    echo "==> 迁移历史清理记录"
+    {
+        echo "# 由 install.sh 于 $(date '+%Y-%m-%d %H:%M:%S') 从历史日志迁移"
+        for f in "$LOG.1" "$LOG"; do
+            [ -f "$f" ] || continue
+            /usr/bin/awk '/触发清理：/ {
+                split($3, p, "："); name = p[2]
+                pid = $5; gsub(/[()]/, "", pid)
+                cpu = $7; sub(/%.*/, "", cpu)
+                printf "%s %s\t%s\t%s\t%s\n", $1, $2, name, pid, cpu
+            }' "$f"
+        done
+    } >"$STATS"
+    /usr/bin/chown root:wheel "$STATS" 2>/dev/null || true
+    /usr/bin/chmod 644 "$STATS"
+    echo "    已迁移 $(/usr/bin/grep -vc '^#' "$STATS" 2>/dev/null || echo 0) 条记录"
+fi
+
 echo "==> 注册开机自启服务"
 /usr/bin/install -o root -g wheel -m 644 "$SRC/launchd/com.local.ecosystemguard.plist" "$PLIST"
 

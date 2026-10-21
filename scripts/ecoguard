@@ -6,6 +6,7 @@
 #    sudo ecoguard stop       停止监控（关闭后开机也不再自动启动）
 #    sudo ecoguard restart    改完 config.conf 后重启用
 #    sudo ecoguard status     查看运行状态
+#    ecoguard stats           查看累计清理次数（按进程 / 按日期）
 #    sudo ecoguard log        查看最近的监控日志
 #    sudo ecoguard restore    恢复被禁用的两个 Apple 系统服务
 #    sudo ecoguard uninstall  彻底卸载监控（并恢复系统服务）
@@ -14,7 +15,7 @@
 set -u
 
 LABEL="com.local.ecosystemguard"
-BASE_DIR="/Library/Application Support/EcosystemGuard"
+BASE_DIR="${ECOGUARD_BASE:-/Library/Application Support/EcosystemGuard}"
 PLIST="/Library/LaunchDaemons/$LABEL.plist"
 LOG="/var/log/ecosystemguard.log"
 LAUNCHCTL="/bin/launchctl"
@@ -108,6 +109,9 @@ cmd_status() {
     echo "  触发条件：CPU ≥ ${THRESHOLD}%，连续 ${SUSTAIN} 次 × ${INTERVAL} 秒"
     echo "  冷却时间：${COOLDOWN} 秒"
     echo "  工作模式：$MODE"
+    if [ -f "$BASE_DIR/kills.log" ]; then
+        echo "  累计清理：$(/usr/bin/awk -F'\t' '/^#/{next} NF>=4{c++} END{print c+0}' "$BASE_DIR/kills.log") 次"
+    fi
     echo "──────────────────────────────────────────────"
     echo "  目标进程当前占用："
     found=0
@@ -129,6 +133,55 @@ cmd_status() {
         echo "    （暂无日志）"
     fi
     echo "──────────────────────────────────────────────"
+}
+
+# 把 "名称<TAB>次数" 渲染成带条形图的行（调用方负责排序）
+render_bars() {
+    /usr/bin/awk -F'\t' '
+        function bar(v, m, w,   k, i, s) {
+            if (m <= 0) return ""
+            k = int(v * w / m + 0.5); if (k < 1) k = 1
+            s = ""; for (i = 0; i < k; i++) s = s "█"
+            return s
+        }
+        { n++; row[n] = $0; if ($2 + 0 > max) max = $2 + 0 }
+        END {
+            for (i = 1; i <= n; i++) {
+                split(row[i], a, "\t")
+                printf "    %-24s %3d 次  %s\n", a[1], a[2], bar(a[2] + 0, max, 20)
+            }
+        }'
+}
+
+cmd_stats() {
+    local stats="$BASE_DIR/kills.log"
+    if [ ! -s "$stats" ]; then
+        echo "还没有清理记录。监控运行后，每次清理都会记在这个文件里："
+        echo "  $stats"
+        return 0
+    fi
+
+    echo "──────────────────────────────────────────────"
+    /usr/bin/awk -F'\t' '
+        /^#/ { next }
+        NF >= 4 {
+            total++
+            if ($1 > last) { last = $1; lname = $2; lpid = $3; lcpu = $4 }
+        }
+        END {
+            printf "  累计清理：%d 次\n", total
+            if (total > 0) printf "  最近一次：%s  %s (pid %s)  CPU %s%%\n", last, lname, lpid, lcpu
+        }' "$stats"
+    echo "──────────────────────────────────────────────"
+    echo "  按进程："
+    /usr/bin/awk -F'\t' '/^#/{next} NF>=4{c[$2]++} END{for(k in c) printf "%s\t%d\n", k, c[k]}' "$stats" \
+        | /usr/bin/sort -k2,2 -nr | render_bars
+    echo "──────────────────────────────────────────────"
+    echo "  按日期："
+    /usr/bin/awk -F'\t' '/^#/{next} NF>=4{d[substr($1,1,10)]++} END{for(k in d) printf "%s\t%d\n", k, d[k]}' "$stats" \
+        | /usr/bin/sort -k1,1 | render_bars
+    echo "──────────────────────────────────────────────"
+    echo "  记录文件：$stats"
 }
 
 cmd_log() {
@@ -173,6 +226,7 @@ case "${1:-status}" in
     stop)      cmd_stop ;;
     restart)   cmd_stop; sleep 1; cmd_start ;;
     status)    cmd_status ;;
+    stats)     cmd_stats ;;
     log)       shift; cmd_log "${1:-40}" ;;
     restore)   cmd_restore ;;
     uninstall) cmd_uninstall ;;

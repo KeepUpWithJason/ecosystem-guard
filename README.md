@@ -74,7 +74,8 @@
 | `停止监控.command` | 停止监控，且下次开机不再自启 |
 | `启动监控.command` | 重新开启监控 + 恢复开机自启 |
 | `重启监控.command` | 修改 `config.conf` 后重启生效 |
-| `查看状态.command` | 运行状态、当前 CPU 占用、最近日志（无需密码） |
+| `查看状态.command` | 运行状态、当前 CPU 占用、累计清理次数、最近日志（无需密码） |
+| `查看统计.command` | 累计清理次数，按进程 / 按日期画条形图（无需密码） |
 | `查看日志.command` | 最近 40 行日志（无需密码） |
 | `卸载监控.command` | 彻底卸载并恢复系统服务 |
 
@@ -82,6 +83,7 @@
 
 ```bash
 sudo /usr/local/sbin/ecoguard status
+sudo /usr/local/sbin/ecoguard stats       # 累计清理统计
 sudo /usr/local/sbin/ecoguard stop
 sudo /usr/local/sbin/ecoguard start
 sudo /usr/local/sbin/ecoguard restart
@@ -91,6 +93,33 @@ sudo /usr/local/sbin/ecoguard uninstall
 ```
 
 安装时会在 `/etc/sudoers.d/ecoguard` 写入一条规则，只对 `ecoguard` 这一个脚本的 `start/stop/restart/status/log` 免密，其他命令仍然需要密码。
+
+## 查看清理统计
+
+每次真正执行清理时，`monitor.sh` 会往 `/Library/Application Support/EcosystemGuard/kills.log`
+追加一行记录（时间、进程名、pid、当时的 CPU%）。这个文件独立于日志滚动，不会被轮转掉，
+所以累计数字是完整的。
+
+`ecoguard stats`（或双击 `查看统计.command`）会把它汇总成：
+
+```
+──────────────────────────────────────────────
+  累计清理：60 次
+  最近一次：2026-10-21 16:19:36  ecosystemd (pid 36070)  CPU 60.3%
+──────────────────────────────────────────────
+  按进程：
+    ecosystemd                 41 次  ████████████████████
+    ecosystemanalyticsd        19 次  █████████
+──────────────────────────────────────────────
+  按日期：
+    2026-10-20                 18 次  ████████████████████
+    2026-10-21                 42 次  ██████████████████████████
+──────────────────────────────────────────────
+  记录文件：/Library/Application Support/EcosystemGuard/kills.log
+```
+
+首次安装（或从旧版本升级）时，`install.sh` 会把历史日志里已有的清理记录一次性迁移进
+`kills.log`，所以数字不会从 0 开始。
 
 ## 配置
 
@@ -163,6 +192,7 @@ sudo /usr/local/sbin/ecoguard uninstall
 | 控制台 | `/usr/local/sbin/ecoguard` |
 | 开机自启 | `/Library/LaunchDaemons/com.local.ecosystemguard.plist` |
 | 日志 | `/var/log/ecosystemguard.log` |
+| 清理统计 | `/Library/Application Support/EcosystemGuard/kills.log` |
 
 ## English
 

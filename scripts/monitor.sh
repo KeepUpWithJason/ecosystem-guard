@@ -21,6 +21,8 @@ BASE_DIR="/Library/Application Support/EcosystemGuard"
 CONF="${ECOGUARD_CONF:-$BASE_DIR/config.conf}"
 LOG="${ECOGUARD_LOG:-/var/log/ecosystemguard.log}"
 STATE_DIR="${ECOGUARD_STATE:-/var/run/ecosystemguard}"
+# 每次清理追加一行 TSV，独立于日志滚动，供 `ecoguard stats` 统计
+STATS_FILE="${ECOGUARD_STATS:-$BASE_DIR/kills.log}"
 
 PS_BIN="/bin/ps"
 KILL_BIN="/bin/kill"
@@ -128,6 +130,10 @@ kill_process() {
     else
         log "  └ pid $pid 已退出"
     fi
+
+    # 记一笔账：时间 <TAB> 进程名 <TAB> pid <TAB> CPU%。独立文件，不受日志滚动影响
+    printf '%s\t%s\t%s\t%s\n' \
+        "$(date '+%Y-%m-%d %H:%M:%S')" "$name" "$pid" "$cpu" >>"$STATS_FILE" 2>/dev/null || true
 
     last_kill=$now
     kills_this_hour=$(( kills_this_hour + 1 ))
