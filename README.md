@@ -6,6 +6,8 @@
 
 **English**: A lightweight LaunchDaemon watchdog for macOS that samples CPU usage of configured processes and terminates the ones that stay above a threshold. Handles the "kill it and it comes right back" problem that `launchd`-managed daemons have. See [English summary](#english) at the bottom.
 
+![ecoguard status 输出](docs/screenshot.png)
+
 ---
 
 ## 背景：为什么手动退出没用
