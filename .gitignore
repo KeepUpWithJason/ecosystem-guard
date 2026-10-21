@@ -13,3 +13,6 @@ config.conf
 .vscode/
 .idea/
 *.swp
+
+# 构建产物
+app/build/

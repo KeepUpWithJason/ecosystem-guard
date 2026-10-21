@@ -66,6 +66,35 @@
 
 脚本会把整个目录复制到 `/tmp` 再以管理员身份执行，以此绕开 macOS 对「桌面 / 文稿」目录的隐私保护（root 读不到那些目录）。
 
+**方式三**：拖拽 `.dmg` 里的 `EcosystemGuard.app` 到「应用程序」，打开后点「安装」。
+镜像需要自己构建（仓库不存放二进制）：
+
+```bash
+./app/build.sh          # 生成 app/build/EcosystemGuard.app 和 EcosystemGuard-1.0.0.dmg
+```
+
+## 图形界面（.app / .dmg）
+
+`EcosystemGuard.app` 是一个原生应用包（由 `osacompile` 生成，不需要 Xcode），把命令行操作包成了点选界面：
+
+| 位置 | 内容 |
+|---|---|
+| 主窗口 | 运行状态、累计清理次数、最近一次清理、两个进程的当前 CPU |
+| 更多操作 → 查看完整统计 | 按进程 / 按日期的条形图 |
+| 更多操作 → 查看最近日志 | 最近 30 行日志 |
+| 更多操作 → 停止 / 启动 / 重启监控 | 免密执行（走 `ecoguard`） |
+| 更多操作 → 开机自启设置 | 把 App 自己加入 / 移出登录项 |
+| 更多操作 → 卸载监控 | 确认后卸载并恢复系统服务 |
+
+App 安装包里自带完整的 `payload`（`install.sh` + 脚本 + plist），所以**即使没克隆仓库也能用它一键安装**。
+
+关于「开机自启」，其实是两件事：
+
+- **监控服务**：由 LaunchDaemon 保证，`RunAtLoad`，开机即运行，**不需要 App 常驻**；
+- **App 本身**：只是查看/操作的面板，默认不随开机启动；想登录就打开它，在「更多操作 → 开机自启设置」里加进登录项。
+
+App 用 ad-hoc 签名。如果你自己再分发，别人首次打开可能需要在「系统设置 → 隐私与安全性」里点「仍要打开」。
+
 ## 使用
 
 | 双击 | 作用 |
@@ -179,6 +208,11 @@ sudo /usr/local/sbin/ecoguard uninstall
 │   └── com.local.ecosystemguard.plist  # LaunchDaemon 定义
 ├── config/
 │   └── config.conf.example             # 配置模板
+├── app/
+│   ├── EcosystemGuard.applescript      # 图形界面源码
+│   ├── resources/summary.sh            # 弹窗用的状态摘要
+│   ├── icon.png                        # 1024px 图标源文件
+│   └── build.sh                        # 构建 .app / .dmg（无需 Xcode）
 └── docs/
     └── measurements.md                 # 实机采样记录与 SIP 证据
 ```
