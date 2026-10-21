@@ -1,0 +1,41 @@
+# =============================================================================
+#  EcosystemGuard 配置文件
+#  修改后执行：sudo /usr/local/sbin/ecoguard restart
+#  （或者双击桌面「CPU监控」文件夹里的「重启监控.command」）
+# =============================================================================
+
+# 要监控的进程名（写 ps 里 comm 的最后一段，多个用空格分隔）
+# 默认就是这次让你电脑卡顿的两个 Apple 后台分析进程
+TARGET_NAMES="ecosystemd ecosystemanalyticsd"
+
+# 绝对不碰的进程。WindowServer 被杀会导致黑屏 / 强制注销，务必保留
+DENY_NAMES="WindowServer kernel_task launchd loginwindow WindowManager Dock Finder SystemUIServer ControlCenter WindowServerHelper"
+
+# ---- 判定条件 ---------------------------------------------------------------
+# CPU 百分比阈值（单个进程）。实测这两位在 30%~50% 之间，25 比较合适
+THRESHOLD=25
+
+# 采样间隔（秒）
+INTERVAL=10
+
+# 连续多少次超阈值才动手。3 次 = 约 30 秒，能过滤掉瞬时尖峰
+SUSTAIN=3
+
+# ---- 清理节奏 ---------------------------------------------------------------
+# 一次清理之后的冷却时间（秒），避免杀完又被拉起、立刻再杀的循环
+COOLDOWN=180
+
+# 每小时最多清理多少次，超过就只记日志不再动手
+MAX_KILLS_PER_HOUR=12
+
+# ---- 工作模式 ---------------------------------------------------------------
+# kill    : 只按阈值清理（你最初要求的模式，最保守）
+# disable : 启动时尝试让 launchd 不再拉起这两个服务，不主动杀进程
+# both    : 先尝试禁用服务，同时保留按阈值清理（推荐，效果最彻底）
+MODE="both"
+
+# 被禁用 / 恢复的系统服务标号
+DISABLE_LABELS="com.apple.ecosystemd com.apple.ecosystemanalyticsd"
+
+# 日志文件超过多少 KB 就滚动（保留一份 .1 备份）
+LOG_MAX_KB=512

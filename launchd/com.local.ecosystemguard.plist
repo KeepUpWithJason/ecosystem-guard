@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.local.ecosystemguard</string>
+
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>/Library/Application Support/EcosystemGuard/monitor.sh</string>
+	</array>
+
+	<!-- 开机 / 登录即启动 -->
+	<key>RunAtLoad</key>
+	<true/>
+
+	<!-- 只有异常退出才重启；正常停止（ecoguard stop）后不会被拉起 -->
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+
+	<!-- 后台低优先级，不影响前台使用 -->
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>LowPriorityIO</key>
+	<true/>
+	<key>Nice</key>
+	<integer>5</integer>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+
+	<key>StandardOutPath</key>
+	<string>/var/log/ecosystemguard.out</string>
+	<key>StandardErrorPath</key>
+	<string>/var/log/ecosystemguard.out</string>
+</dict>
+</plist>

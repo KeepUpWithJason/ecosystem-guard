@@ -1,0 +1,180 @@
+#!/bin/bash
+# =============================================================================
+#  EcosystemGuard 控制台
+#  用法：
+#    sudo ecoguard start      启动监控（登录后自动启动，一般不需要手动执行）
+#    sudo ecoguard stop       停止监控（关闭后开机也不再自动启动）
+#    sudo ecoguard restart    改完 config.conf 后重启用
+#    sudo ecoguard status     查看运行状态
+#    sudo ecoguard log        查看最近的监控日志
+#    sudo ecoguard restore    恢复被禁用的两个 Apple 系统服务
+#    sudo ecoguard uninstall  彻底卸载监控（并恢复系统服务）
+# =============================================================================
+
+set -u
+
+LABEL="com.local.ecosystemguard"
+BASE_DIR="/Library/Application Support/EcosystemGuard"
+PLIST="/Library/LaunchDaemons/$LABEL.plist"
+LOG="/var/log/ecosystemguard.log"
+LAUNCHCTL="/bin/launchctl"
+
+die() { printf '错误：%s\n' "$*" >&2; exit 1; }
+
+need_root() {
+    [ "$(id -u)" -eq 0 ] || die "需要 root 权限，请用 sudo 执行"
+}
+
+load_conf() {
+    TARGET_NAMES="ecosystemd ecosystemanalyticsd"
+    THRESHOLD=25
+    SUSTAIN=3
+    INTERVAL=10
+    COOLDOWN=180
+    MODE="both"
+    DISABLE_LABELS="com.apple.ecosystemd com.apple.ecosystemanalyticsd"
+    # shellcheck disable=SC1091
+    [ -f "$BASE_DIR/config.conf" ] && . "$BASE_DIR/config.conf"
+}
+
+is_loaded() {
+    "$LAUNCHCTL" print "system/$LABEL" >/dev/null 2>&1
+}
+
+cmd_start() {
+    need_root
+    [ -f "$PLIST" ] || die "找不到 $PLIST，请先运行安装程序"
+    is_loaded && { echo "监控已经在运行中。"; return 0; }
+
+    # launchd 的 bootout 有约 5 秒的异步清理期，清理完成前 bootstrap 会被忽略
+    i=0
+    while is_loaded && [ "$i" -lt 30 ]; do
+        sleep 0.5
+        i=$((i + 1))
+    done
+
+    "$LAUNCHCTL" enable "system/$LABEL" 2>/dev/null || true
+    "$LAUNCHCTL" bootstrap system "$PLIST" 2>/dev/null || true
+    "$LAUNCHCTL" kickstart -k "system/$LABEL" 2>/dev/null || true
+
+    i=0
+    while [ "$i" -lt 10 ]; do
+        sleep 1
+        if "$LAUNCHCTL" print "system/$LABEL" 2>/dev/null | /usr/bin/grep -q "state = running"; then
+            echo "监控已启动。"
+            return 0
+        fi
+        i=$((i + 1))
+    done
+    die "启动失败，请查看 $LOG"
+}
+
+cmd_stop() {
+    need_root
+    if ! is_loaded; then
+        echo "监控当前没有在运行。"
+        "$LAUNCHCTL" disable "system/$LABEL" 2>/dev/null || true
+        return 0
+    fi
+    "$LAUNCHCTL" bootout "system/$LABEL" 2>/dev/null || true
+    # disable 保证下次开机 / 重新登录也不会被自动拉起
+    "$LAUNCHCTL" disable "system/$LABEL" 2>/dev/null || true
+
+    # bootout 是异步的，最多等 10 秒确认真的是卸载完成
+    i=0
+    while is_loaded && [ "$i" -lt 20 ]; do
+        sleep 0.5
+        i=$((i + 1))
+    done
+    if is_loaded; then
+        die "停止失败，请查看 $LOG"
+    fi
+    echo "监控已停止（开机也不会自动启动）。"
+    echo "需要重新开启时：双击「启动监控.command」，或执行 sudo ecoguard start"
+}
+
+cmd_status() {
+    load_conf
+    echo "──────────────────────────────────────────────"
+    if is_loaded; then
+        echo "  监控状态：✅ 正在运行"
+        pid=$(/bin/launchctl print "system/$LABEL" 2>/dev/null | /usr/bin/awk '/^\tpid = /{print $3; exit}')
+        [ -n "${pid:-}" ] && echo "  监控进程：pid $pid"
+    else
+        echo "  监控状态：⛔️ 已停止"
+    fi
+    echo "──────────────────────────────────────────────"
+    echo "  目标进程：$TARGET_NAMES"
+    echo "  触发条件：CPU ≥ ${THRESHOLD}%，连续 ${SUSTAIN} 次 × ${INTERVAL} 秒"
+    echo "  冷却时间：${COOLDOWN} 秒"
+    echo "  工作模式：$MODE"
+    echo "──────────────────────────────────────────────"
+    echo "  目标进程当前占用："
+    found=0
+    for name in $TARGET_NAMES; do
+        line=$(/bin/ps -Ao pid=,pcpu=,etime=,comm= 2>/dev/null | /usr/bin/awk -v n="$name" '
+            { c = $4; sub(/.*\//, "", c); if (c == n) { printf "    pid %-7s CPU %5s%%   已运行 %s\n", $1, $2, $3; f = 1 } }
+            END { exit !f }')
+        if [ -n "$line" ]; then
+            printf '%s\n' "$line"
+            found=1
+        fi
+    done
+    [ "$found" -eq 0 ] && echo "    （当前没有在运行）"
+    echo "──────────────────────────────────────────────"
+    echo "  最近日志："
+    if [ -f "$LOG" ]; then
+        /usr/bin/tail -n 8 "$LOG" | /usr/bin/sed 's/^/    /'
+    else
+        echo "    （暂无日志）"
+    fi
+    echo "──────────────────────────────────────────────"
+}
+
+cmd_log() {
+    [ -f "$LOG" ] || die "日志还不存在：$LOG"
+    /usr/bin/tail -n "${1:-40}" "$LOG"
+}
+
+restore_label() {
+    local label="$1" plist="/System/Library/LaunchDaemons/$1.plist"
+    "$LAUNCHCTL" enable "system/$label" 2>/dev/null || true
+    [ -f "$plist" ] && "$LAUNCHCTL" bootstrap system "$plist" 2>/dev/null || true
+    echo "已恢复 $label"
+}
+
+cmd_restore() {
+    need_root
+    load_conf
+    for label in $DISABLE_LABELS; do
+        restore_label "$label"
+    done
+    echo "提示：已恢复的系统服务会在系统需要时自动重新启动（也可以重启电脑让其立刻生效）。"
+}
+
+cmd_uninstall() {
+    need_root
+    "$LAUNCHCTL" bootout "system/$LABEL" 2>/dev/null || true
+    "$LAUNCHCTL" disable "system/$LABEL" 2>/dev/null || true
+    load_conf
+    for label in $DISABLE_LABELS; do
+        restore_label "$label" >/dev/null
+    done
+    /bin/rm -f "$PLIST"
+    /bin/rm -rf "$BASE_DIR"
+    /bin/rm -f /etc/sudoers.d/ecoguard
+    /bin/rm -f /usr/local/sbin/ecoguard
+    echo "监控已卸载，两个系统服务已恢复为系统默认状态。"
+    echo "日志保留在 $LOG（可手动删除）。"
+}
+
+case "${1:-status}" in
+    start)     cmd_start ;;
+    stop)      cmd_stop ;;
+    restart)   cmd_stop; sleep 1; cmd_start ;;
+    status)    cmd_status ;;
+    log)       shift; cmd_log "${1:-40}" ;;
+    restore)   cmd_restore ;;
+    uninstall) cmd_uninstall ;;
+    *)         sed -n '3,14p' "$0" ; exit 1 ;;
+esac

@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# 运行时产物
+*.log
+config.conf
+!config/config.conf.example
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
