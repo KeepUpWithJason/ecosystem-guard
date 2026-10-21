@@ -19,7 +19,7 @@ on run
 	set bar to current application's NSStatusBar's systemStatusBar()
 	set my si to bar's statusItemWithLength_(current application's NSVariableStatusItemLength)
 	my si's retain()
-	my si's button()'s setTitle_("E …")
+	my si's button()'s setTitle_("E · …")
 	my buildMenu()
 	my refresh()
 end run
@@ -76,10 +76,10 @@ on refresh()
 		my itemCount's setTitle_("累计清理：" & n & " 次")
 		if isRunning is "running" then
 			my itemMonitor's setTitle_("停止监控")
-			my si's button()'s setTitle_("E " & n & "次")
+			my si's button()'s setTitle_("E · " & n & "次")
 		else
 			my itemMonitor's setTitle_("启动监控")
-			my si's button()'s setTitle_("E " & n & "次 ⏸")
+			my si's button()'s setTitle_("E · " & n & "次 ⏸")
 		end if
 		if li is "1" then
 			my itemLogin's setState_(1)
@@ -87,7 +87,7 @@ on refresh()
 			my itemLogin's setState_(0)
 		end if
 	on error
-		my si's button()'s setTitle_("E ?")
+		my si's button()'s setTitle_("E · ?")
 	end try
 end refresh
 
