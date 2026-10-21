@@ -75,7 +75,9 @@
 
 ## 图形界面（.app / .dmg）
 
-`EcosystemGuard.app` 是一个原生应用包（由 `osacompile` 生成，不需要 Xcode），把命令行操作包成了点选界面：
+构建后得到两个 App，都由 `osacompile` 编译（不需要 Xcode）：
+
+### `EcosystemGuard.app` —— 控制面板
 
 | 位置 | 内容 |
 |---|---|
@@ -83,15 +85,25 @@
 | 更多操作 → 查看完整统计 | 按进程 / 按日期的条形图 |
 | 更多操作 → 查看最近日志 | 最近 30 行日志 |
 | 更多操作 → 停止 / 启动 / 重启监控 | 免密执行（走 `ecoguard`） |
-| 更多操作 → 开机自启设置 | 把 App 自己加入 / 移出登录项 |
 | 更多操作 → 卸载监控 | 确认后卸载并恢复系统服务 |
 
-App 安装包里自带完整的 `payload`（`install.sh` + 脚本 + plist），所以**即使没克隆仓库也能用它一键安装**。
+### `EcosystemGuardMenu.app` —— 菜单栏常驻
 
-关于「开机自启」，其实是两件事：
+一个 `LSUIElement` 应用（不占 Dock、不进 Cmd+Tab），用 AppleScriptObjC 创建 `NSStatusItem`：
 
-- **监控服务**：由 LaunchDaemon 保证，`RunAtLoad`，开机即运行，**不需要 App 常驻**；
-- **App 本身**：只是查看/操作的面板，默认不随开机启动；想登录就打开它，在「更多操作 → 开机自启设置」里加进登录项。
+- 菜单栏显示 `🛡 累计次数`，每 8 秒刷新一次；监控停止时变成 `🛡 N ⏸`
+- 点开菜单：累计清理次数 / 打开控制面板 / 停止（启动）监控 / 开机自启 / 退出
+- 勾上「开机自启」会写一个 `~/Library/LaunchAgents` 登录项，之后每次登录自动出现
+
+### 安装包自带载荷
+
+控制面板的 bundle 里带着完整的 `payload`（`install.sh` + 脚本 + plist），所以**即使没克隆仓库也能用它一键安装**。
+
+关于「开机自启」，其实是三件事：
+
+- **监控服务**：由 LaunchDaemon 保证，`RunAtLoad`，开机即运行，**不需要任何 App 常驻**；
+- **菜单栏数字**：勾选状态栏 App 的「开机自启」（写 LaunchAgent），登录即显示；
+- **控制面板**：只是按需打开的工具，不需要自启。
 
 App 用 ad-hoc 签名。如果你自己再分发，别人首次打开可能需要在「系统设置 → 隐私与安全性」里点「仍要打开」。
 
@@ -209,10 +221,13 @@ sudo /usr/local/sbin/ecoguard uninstall
 ├── config/
 │   └── config.conf.example             # 配置模板
 ├── app/
-│   ├── EcosystemGuard.applescript      # 图形界面源码
+│   ├── EcosystemGuard.applescript      # 控制面板源码
+│   ├── EcosystemGuardMenu.applescript  # 菜单栏 App 源码（AppleScriptObjC）
 │   ├── resources/summary.sh            # 弹窗用的状态摘要
+│   ├── resources/menubar.sh            # 菜单栏刷新用的三项数据
+│   ├── resources/loginitem.plist.template
 │   ├── icon.png                        # 1024px 图标源文件
-│   └── build.sh                        # 构建 .app / .dmg（无需 Xcode）
+│   └── build.sh                        # 构建两个 .app 与 .dmg（无需 Xcode）
 └── docs/
     └── measurements.md                 # 实机采样记录与 SIP 证据
 ```
