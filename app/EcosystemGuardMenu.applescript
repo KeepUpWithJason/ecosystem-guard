@@ -73,7 +73,7 @@ on refresh()
 		set my isRunning to item 2 of ps as text
 		set li to item 3 of ps as text
 
-		my itemCount's setTitle_("累计清理：" & n & " 次")
+		my itemCount's setTitle_("今日清理：" & n & " 次")
 		if isRunning is "running" then
 			my itemMonitor's setTitle_("停止监控")
 			my si's button()'s setTitle_("E · " & n & "次")

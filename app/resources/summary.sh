@@ -16,7 +16,9 @@ else
     echo "状态：⏸ 已加载但未运行（$state）"
 fi
 
+today=$(/usr/bin/awk -F'\t' -v d="$(/bin/date '+%Y-%m-%d')" '!/^#/ && NF>=4 && substr($1,1,10)==d {c++} END{print c+0}' "$STATS" 2>/dev/null)
 total=$(/usr/bin/awk -F'\t' '!/^#/ && NF>=4 {c++} END{print c+0}' "$STATS" 2>/dev/null)
+echo "今日清理：${today:-0} 次"
 echo "累计清理：${total:-0} 次"
 
 last=$(/usr/bin/awk -F'\t' '!/^#/ && NF>=4 {ts=$1; n=$2; cpu=$4}

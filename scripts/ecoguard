@@ -110,6 +110,7 @@ cmd_status() {
     echo "  冷却时间：${COOLDOWN} 秒"
     echo "  工作模式：$MODE"
     if [ -f "$BASE_DIR/kills.log" ]; then
+        echo "  今日清理：$(/usr/bin/awk -F'\t' -v d="$(/bin/date '+%Y-%m-%d')" '/^#/{next} NF>=4 && substr($1,1,10)==d{c++} END{print c+0}' "$BASE_DIR/kills.log") 次"
         echo "  累计清理：$(/usr/bin/awk -F'\t' '/^#/{next} NF>=4{c++} END{print c+0}' "$BASE_DIR/kills.log") 次"
     fi
     echo "──────────────────────────────────────────────"
@@ -162,13 +163,15 @@ cmd_stats() {
     fi
 
     echo "──────────────────────────────────────────────"
-    /usr/bin/awk -F'\t' '
+    /usr/bin/awk -F'\t' -v td="$(/bin/date '+%Y-%m-%d')" '
         /^#/ { next }
         NF >= 4 {
             total++
+            if (substr($1, 1, 10) == td) today++
             if ($1 > last) { last = $1; lname = $2; lpid = $3; lcpu = $4 }
         }
         END {
+            printf "  今日清理：%d 次\n", today + 0
             printf "  累计清理：%d 次\n", total
             if (total > 0) printf "  最近一次：%s  %s (pid %s)  CPU %s%%\n", last, lname, lpid, lcpu
         }' "$stats"
