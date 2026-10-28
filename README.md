@@ -66,8 +66,8 @@
 
 脚本会把整个目录复制到 `/tmp` 再以管理员身份执行，以此绕开 macOS 对「桌面 / 文稿」目录的隐私保护（root 读不到那些目录）。
 
-**方式三**：拖拽 `.dmg` 里的 `EcosystemGuard.app` 到「应用程序」，打开后点「安装」。
-镜像需要自己构建（仓库不存放二进制）：
+**方式三**：下载 Release 里的 `.dmg`，把 `EcosystemGuard.app` 拖到「应用程序」，打开后点「安装」。
+自己构建也可以（仓库不存放二进制）：
 
 ```bash
 ./app/build.sh          # 生成 app/build/EcosystemGuard.app 和 EcosystemGuard-1.0.0.dmg
@@ -75,36 +75,34 @@
 
 ## 图形界面（.app / .dmg）
 
-构建后得到两个 App，都由 `osacompile` 编译（不需要 Xcode）：
+一个 App，两种用法，用 `osacompile` 编译（不需要 Xcode）。它就是 `LSUIElement` 应用，不占 Dock、不进 Cmd+Tab，靠 AppleScriptObjC 创建 `NSStatusItem` 常驻菜单栏：
 
-### `EcosystemGuard.app` —— 控制面板
-
-| 位置 | 内容 |
+| 用法 | 行为 |
 |---|---|
-| 主窗口 | 运行状态、**今日清理次数**、累计清理次数、最近一次清理、两个进程的当前 CPU |
-| 更多操作 → 查看完整统计 | 今日 / 累计总次数，按进程、按日期的条形图 |
-| 更多操作 → 查看最近日志 | 最近 30 行日志 |
-| 更多操作 → 停止 / 启动 / 重启监控 | 免密执行（走 `ecoguard`） |
-| 更多操作 → 卸载监控 | 确认后卸载并恢复系统服务 |
+| **双击打开** | 弹出控制面板：运行状态、今日/累计次数、最近一次清理、两个进程当前 CPU |
+| **随登录启动** | 只进菜单栏，显示 `E · 113次`，不弹面板 |
 
-### `EcosystemGuardMenu.app` —— 菜单栏常驻
+菜单栏菜单：
 
-一个 `LSUIElement` 应用（不占 Dock、不进 Cmd+Tab），用 AppleScriptObjC 创建 `NSStatusItem`：
+- 今日清理：113 次（只读）
+- 打开控制面板
+- 停止监控 / 启动监控（按当前状态切换）
+- 开机自启（勾选状态实时显示）
+- 退出
 
-- 菜单栏显示 `E · 113次`，**数字是「今日」清理次数**，每天零点自然归零；监控停止时变成 `E · 113次 ⏸`
-- 点开菜单：今日清理次数 / 打开控制面板 / 停止（启动）监控 / 开机自启 / 退出
-- 历史累计不在菜单栏占用位置，去控制面板或 `ecoguard stats` 看
-- **首次打开会自动加入登录项**（写 `~/Library/LaunchAgents`，仅在从 `/Applications` 运行时触发），之后每次登录自动出现；菜单里可随时关掉，关过之后不会再自动加回
+控制面板「更多操作」：查看完整统计 / 查看最近日志 / 停止·启动·重启监控 / 开机自启：开·关 / 卸载监控。
 
-### 安装包自带载荷
+几个细节：
 
-控制面板的 bundle 里带着完整的 `payload`（`install.sh` + 脚本 + plist），所以**即使没克隆仓库也能用它一键安装**。
+- 菜单栏数字是**今日**清理次数，每天零点自然归零（按日期过滤，不重置数据）；历史累计在面板和 `ecoguard stats` 里看
+- **首次打开自动加入登录项**（写 `~/Library/LaunchAgents`，仅在从 `/Applications` 运行时触发），登录时由 `login-launch.sh` 先打标记再拉起 App，App 见到新鲜标记就只进菜单栏、不弹窗
+- 手动关掉「开机自启」会留下标记文件，之后不会偷偷加回
+- App 本身带着完整的 `payload`（`install.sh` + 脚本 + plist），**即使没克隆仓库也能一键安装**
 
-关于「开机自启」，其实是三件事：
+关于「开机自启」，其实是两件事：
 
-- **监控服务**：由 LaunchDaemon 保证，`RunAtLoad`，开机即运行，**不需要任何 App 常驻**；
-- **菜单栏数字**：首次打开状态栏 App 会自动写 LaunchAgent，登录即显示；
-- **控制面板**：只是按需打开的工具，不需要自启。
+- **监控服务**：LaunchDaemon，`RunAtLoad`，开机即运行，**不需要 App 常驻**；
+- **菜单栏 App**：用户级 LaunchAgent，登录时自动出现在菜单栏，可随时关掉。
 
 App 用 ad-hoc 签名。如果你自己再分发，别人首次打开可能需要在「系统设置 → 隐私与安全性」里点「仍要打开」。
 
@@ -222,13 +220,13 @@ sudo /usr/local/sbin/ecoguard uninstall
 ├── config/
 │   └── config.conf.example             # 配置模板
 ├── app/
-│   ├── EcosystemGuard.applescript      # 控制面板源码
-│   ├── EcosystemGuardMenu.applescript  # 菜单栏 App 源码（AppleScriptObjC）
-│   ├── resources/summary.sh            # 弹窗用的状态摘要
+│   ├── EcosystemGuard.applescript      # 唯一 App：菜单栏 + 面板（AppleScriptObjC）
+│   ├── resources/summary.sh            # 面板弹窗用的状态摘要
 │   ├── resources/menubar.sh            # 菜单栏刷新用的三项数据
 │   ├── resources/loginitem.plist.template
+│   ├── resources/login-launch.sh       # 登录启动入口（打标记后拉起 App）
 │   ├── icon.png                        # 1024px 图标源文件
-│   └── build.sh                        # 构建两个 .app 与 .dmg（无需 Xcode）
+│   └── build.sh                        # 构建 .app 与 .dmg（无需 Xcode）
 └── docs/
     └── measurements.md                 # 实机采样记录与 SIP 证据
 ```

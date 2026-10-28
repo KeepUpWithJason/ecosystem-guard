@@ -6,10 +6,8 @@
 	<string>com.github.keepupwithjason.ecosystemguard.menubar</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/usr/bin/open</string>
-		<string>-g</string>
-		<string>-a</string>
-		<string>__APP_PATH__</string>
+		<string>/bin/bash</string>
+		<string>__APP_PATH__/Contents/Resources/ui/login-launch.sh</string>
 	</array>
 	<key>RunAtLoad</key>
 	<true/>
