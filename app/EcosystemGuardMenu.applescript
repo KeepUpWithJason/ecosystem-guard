@@ -21,6 +21,7 @@ on run
 	my si's retain()
 	my si's button()'s setTitle_("E · …")
 	my buildMenu()
+	my ensureLoginItem()
 	my refresh()
 end run
 
@@ -114,19 +115,43 @@ on toggleMonitor_(sender)
 	my refresh()
 end toggleMonitor_
 
+on markerPath()
+	return homePath & "/Library/Application Support/EcosystemGuard/menubar-manual-off"
+end markerPath
+
+-- 首次运行时自动设为登录项；用户手动关过就尊重选择，不再自动加回
+on ensureLoginItem()
+	try
+		set appPath to my bundlePath()
+		if not (appPath starts with "/Applications/") then return
+		set la to homePath & "/Library/LaunchAgents/com.github.keepupwithjason.ecosystemguard.menubar.plist"
+		set mk to my markerPath()
+		set hasPlist to do shell script "test -f " & quoted form of la & " && echo 1 || echo 0"
+		set hasMarker to do shell script "test -f " & quoted form of mk & " && echo 1 || echo 0"
+		if hasPlist is "0" and hasMarker is "0" then my writeLoginItem()
+	end try
+end ensureLoginItem
+
+on writeLoginItem()
+	set appPath to my bundlePath()
+	set tpl to appPath & "/Contents/Resources/ui/loginitem.plist.template"
+	set agentsDir to homePath & "/Library/LaunchAgents"
+	set la to agentsDir & "/com.github.keepupwithjason.ecosystemguard.menubar.plist"
+	do shell script "/bin/mkdir -p " & quoted form of agentsDir & " && /usr/bin/sed " & quoted form of ("s|__APP_PATH__|" & appPath & "|") & " " & quoted form of tpl & " > " & quoted form of la
+end writeLoginItem
+
 on toggleLogin_(sender)
 	set la to homePath & "/Library/LaunchAgents/com.github.keepupwithjason.ecosystemguard.menubar.plist"
+	set mk to my markerPath()
 	set existsNow to do shell script "test -f " & quoted form of la & " && echo 1 || echo 0"
 	if existsNow is "1" then
 		try
 			do shell script "/bin/launchctl bootout gui/" & (do shell script "id -u") & "/com.github.keepupwithjason.ecosystemguard.menubar"
 		end try
-		do shell script "rm -f " & quoted form of la
+		do shell script "rm -f " & quoted form of la & " && /bin/mkdir -p " & quoted form of (homePath & "/Library/Application Support/EcosystemGuard") & " && /usr/bin/touch " & quoted form of mk
 	else
-		set appPath to my bundlePath()
-		set tpl to appPath & "/Contents/Resources/ui/loginitem.plist.template"
-		set agentsDir to homePath & "/Library/LaunchAgents"
-		do shell script "/bin/mkdir -p " & quoted form of agentsDir & " && /usr/bin/sed " & quoted form of ("s|__APP_PATH__|" & appPath & "|") & " " & quoted form of tpl & " > " & quoted form of la
+		my writeLoginItem()
+		do shell script "/bin/rm -f " & quoted form of mk
 	end if
 	my refresh()
 end toggleLogin_
